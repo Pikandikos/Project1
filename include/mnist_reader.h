@@ -6,7 +6,9 @@
 
 using namespace std;
 
-vector<vector<float>> read_mnist_images(const std::string &full_path);
-vector<unsigned char> read_mnist_labels(const std::string &full_path);
+//Read mnist images
+vector<vector<float>> read_mnist_im(const std::string &full_path);
+//Read mnist labels
+vector<unsigned char> read_mnist_l(const std::string &full_path);
 
 #endif

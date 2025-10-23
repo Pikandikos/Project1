@@ -5,61 +5,64 @@
 #include <unordered_map>
 #include <random>
 #include <cstdint>
-#include <utility>   // για std::pair
+#include <utility>
+#include <string>
 
 using namespace std;
 
-// Δομή για όλες τις παραμέτρους του LSH
+//Default parameters
 struct LSHParams {
-    int seed = 1;     // τυχαίος seed για αναπαραγωγιμότητα
-    int k = 4;        // αριθμός συναρτήσεων h ανά g
-    int L = 5;        // αριθμός hash tables
-    double w = 4.0;   // πλάτος κελιού (cell width)
-    int N = 1;        // πόσους γείτονες να επιστρέφει
-    double R = 2000.0;// radius για range query
+    int seed = 1;
+    int k = 4;
+    int L = 5;
+    double w = 4.0;
+    int N = 1;
+    double R = 2000.0;
 };
 
-// Κύρια κλάση LSH
+//LSH Class
 class LSH {
 public:
-    // Constructor
+    //Constructor
     LSH(int dim, const LSHParams& params, size_t table_size = 10007);
-
-    // Κατασκευή hash tables με βάση τα data vectors
+    //Fit data
     void build(const vector<vector<float>>& data);
-
-    // Επιστρέφει τους Ν κοντινότερους (approximate)
-    vector<int> query(const vector<float>& q, int N);
-
-    // Επιστρέφει όλα τα σημεία εντός απόστασης R
+    //Find NN
+    vector<pair<int, double>> query(const vector<float>& q, int N);
     vector<int> range_query(const vector<float>& q, double R);
-
-    // Debugging / πληροφορίες
-    const vector<vector<int>>& buckets_for_L() const { return buckets_idx; }
-
+    
+    // Performance metrics
+    double get_construction_time() const { return construction_time; }
+    
 private:
-    int dim;                // διάσταση των διανυσμάτων
-    LSHParams params;       // παράμετροι LSH
-    size_t table_size;      // μέγεθος κάθε hash πίνακα
-    mt19937 rng;            // random generator
+    int dim;
+    LSHParams params;
+    size_t table_size;
+    mt19937 rng;
+    double construction_time;
 
-    // Τυχαίες προβολές: L πίνακες, καθένας με k vectors των dim
-    vector<vector<vector<float>>> vs;   // v_i,j
-    vector<vector<double>> ts;          // t_i,j (offsets)
-    vector<vector<int64_t>> rints;      // r_i,j (τυχαίοι ακέραιοι)
-
-    // L hash tables: bucket -> λίστα από (fullID, pointID)
-    vector<unordered_map<int, vector<pair<int64_t,int>>>> tables;
-
-    // Helper functions
+    //DISTRIBUTIONS
+    vector<vector<vector<float>>> vs;
+    vector<vector<double>> ts;
+    vector<vector<int64_t>> rints;
+    
+    //Tables
+    vector<unordered_map<int, vector<pair<int64_t, int>>>> tables;
+    vector<vector<int>> buckets_idx;
+    
+    const vector<vector<float>>* data_ptr = nullptr;
+    
+    //Helper functions
     int compute_bucket(int64_t fullID);
     int64_t compute_id(int table_id, const vector<float>& v);
-
-    // Για debug
-    vector<vector<int>> buckets_idx;
-
-    // pointer στο dataset (ώστε να μη γίνεται αντιγραφή)
-    const vector<vector<float>>* data_ptr = nullptr;
 };
+
+//Lsh main function
+bool lsh_main(const string& data_file,
+              const string& query_file,
+              const string& output_file,
+              const LSHParams& params,
+              const string& type,
+              bool do_range);
 
 #endif
