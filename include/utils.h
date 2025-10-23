@@ -5,7 +5,11 @@
 #include <chrono>
 #include <string>
 
-double euclidean_distance(const std::vector<float>& a, const std::vector<float>& b);
+using namespace std;
+
+// Euclidean distance between two vectors
+double euclidean_distance(const std::vector<float>& v1, const std::vector<float>& v2);
+
 using Clock = std::chrono::high_resolution_clock;
 struct Timer {
     Clock::time_point start;

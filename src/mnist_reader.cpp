@@ -1,8 +1,9 @@
-#include "mnist_reader.h"
 #include <fstream>
 #include <iostream>
 #include <vector>
 #include <cstdlib>
+
+#include "mnist_reader.h"
 
 using namespace std;
 
@@ -15,7 +16,7 @@ static int reverseInt(int i) {
     return ((int)c1 << 24) + ((int)c2 << 16) + ((int)c3 << 8) + c4;
 }
 
-vector<vector<float>> read_mnist_images(const string &full_path) {
+vector<vector<float>> read_mnist_im(const string &full_path) {
     ifstream file(full_path, ios::binary);
     if (!file.is_open()) {
         cerr << "Cannot open file: " << full_path << endl;
@@ -41,7 +42,7 @@ vector<vector<float>> read_mnist_images(const string &full_path) {
     return images;
 }
 
-vector<unsigned char> read_mnist_labels(const string &full_path) {
+vector<unsigned char> read_mnist_l(const string &full_path) {
     ifstream file(full_path, ios::binary);
     if (!file.is_open()) {
         cerr << "Cannot open file: " << full_path << endl;

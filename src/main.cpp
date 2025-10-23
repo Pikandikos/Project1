@@ -1,135 +1,96 @@
-
+//src/driver_main.cpp
 #include <iostream>
-#include <vector>
 #include <string>
-#include "../include/dataset.h"
-#include "../include/hypercube.h"
+#include <vector>
+#include <algorithm>
+#include <cstring>
+#include <cstdlib>
+
+
+#include "dataset.h"
+#include "lsh.h"        //για LSHParams και αν έχεις δηλώσεις wrapper
+//include headers για hypercube/ivf αν υπάρχουν (όπου δηλώνεται hypercube_main_files κλπ)
+#include "hypercube.h"
+//#include "ivfflat.h"
+//#include "ivfpq.h"
 
 using namespace std;
 
-int main(int argc, char *argv[])
-{
-    // Command line arguments
-    if (argc < 3)
-    {
-        cerr << "Usage: Command Line Error\n";
+
+int main(int argc, char** argv) {
+    string data_file="", query_file="", type="mnist", output_file="output.txt";
+    LSHParams params; //uses your LSHParams struct from lsh.h
+    params.seed = 1; params.k = 4; params.L = 5; params.w = 4.0; params.N = 1; params.R = 2000.0;
+
+    //hypercube / ivf specific
+    int kproj = 0, M = 0, probes = 0, kclusters = 0, nprobe = 0, seed = 0, nbits = 0;
+
+    bool use_lsh = false, use_hypercube = false, use_ivfflat = false, use_ivfpq = false;
+    bool rangeSearch = false;
+
+    //Minimal manual parse (robust enough)
+    for (int i = 1; i < argc; ++i) {
+        string a = argv[i];
+        if (a == "-d" && i+1 < argc) data_file = argv[++i];
+        else if (a == "-q" && i+1 < argc) query_file = argv[++i];
+        else if (a == "-o" && i+1 < argc) output_file = argv[++i];
+        else if (a == "-k" && i+1 < argc) params.k = stoi(argv[++i]);
+        else if (a == "-L" && i+1 < argc) params.L = stoi(argv[++i]);
+        else if (a == "-w" && i+1 < argc) params.w = stod(argv[++i]);
+        else if (a == "-N" && i+1 < argc) params.N = stoi(argv[++i]);
+        else if (a == "-R" && i+1 < argc) params.R = stod(argv[++i]);
+        else if (a == "--seed" && i+1 < argc) params.seed = stoi(argv[++i]);
+        else if (a == "-type" && i+1 < argc) type = argv[++i];
+        else if (a == "-lsh") use_lsh = true;
+        else if (a == "-hypercube") use_hypercube = true;
+        else if (a == "-ivfflat") use_ivfflat = true;
+        else if (a == "-ivfpq") use_ivfpq = true;
+        else if (a == "-kproj" && i+1 < argc) kproj = stoi(argv[++i]);
+        else if (a == "-M" && i+1 < argc) M = stoi(argv[++i]);
+        else if (a == "-probes" && i+1 < argc) probes = stoi(argv[++i]);
+        else if (a == "-kclusters" && i+1 < argc) kclusters = stoi(argv[++i]);
+        else if (a == "-nprobe" && i+1 < argc) nprobe = stoi(argv[++i]);
+        else if (a == "-nbits" && i+1 < argc) nbits = stoi(argv[++i]);
+        else if (a == "-range" && i+1 < argc) rangeSearch = (string(argv[++i]) == "true");
+        //add any other flags needed
+    }
+
+    //Basic validation
+    if (data_file.empty() || query_file.empty()) {
+        cerr << "Usage example:\n"
+             << "./search -d train-images.idx3-ubyte -q t10k-images.idx3-ubyte -type mnist -lsh -k 4 -L 5 -w 4.0 -N 1 -R 2000 -o output.txt\n";
         return 1;
     }
 
-    unordered_map<string, string> args = parseArgs(argc, argv);
 
-    // -------------- Read command line args --------------
-    bool useLSH = false, useHypercube = false, useIVFFLAT = false, useIVFPQ = false;
-    int kproj = 0, M = 0, probes = 0, k = 0, L = 0;
-    double w = 0.0;
-    int kclusters = 0, nprobe = 0, seed = 0, nbits = 0;
+    bool success = false;
+    if (use_lsh) {
+        cout << "Launching LSH..." << endl;
+        success = lsh_main(data_file, query_file, output_file, params, type, rangeSearch);
+        cout << (success ? "LSH exited successfully\n" : "LSH exited abruptly\n");
+    } else if (use_hypercube) {
+         // -------------- Load dataset --------------
+        vector<vector<double>> dataset;
+        vector<vector<double>> queries;
 
-    string inputFile = args.at("-d");
-    string queryFile = args.at("-q");
-    string outputFile = args.at("-o");
-    int N = stoi(args.at("-N"));
-    double R = stod(args.at("-R"));
-    string type = args.at("-type");
-    bool rangeSearch = (args.at("-range") == "true");
-
-    if (args.find("-lsh") != args.end())
-    {
-        k = stoi(args.at("-k"));
-        L = stoi(args.at("-L"));
-        w = stod(args.at("-w"));
-        useLSH = args.find("-lsh") != args.end();
-    }
-    else if (args.find("-hypercube") != args.end())
-    {
-        kproj = stoi(args.at("-kproj"));
-        w = stod(args.at("-w"));
-        M = stoi(args.at("-M"));
-        probes = stoi(args.at("-probes"));
-        useHypercube = args.find("-hypercube") != args.end();
-    }
-    else if (args.find("-ivfflat") != args.end())
-    {
-        kclusters = stoi(args.at("-kclusters"));
-        nprobe = stoi(args.at("-nprobe"));
-        seed = stoi(args.at("-seed"));
-        useIVFFLAT = args.find("-ivfflat") != args.end();
-    }
-    else if (args.find("-ivfpq") != args.end())
-    {
-        kclusters = stoi(args.at("-kclusters"));
-        nprobe = stoi(args.at("-nprobe"));
-        M = stoi(args.at("-M"));
-        nbits = stoi(args.at("-nbits"));
-        seed = stoi(args.at("-seed"));
-        useIVFPQ = args.find("-ivfpq") != args.end();
-    }
-
-    // -------------- Load dataset --------------
-    vector<vector<double>> dataset;
-    vector<vector<double>> queries;
-
-    if (type == "MNIST")
-    {
-        auto rawImages = read_mnist_images(inputFile);
-        auto rawQueries = read_mnist_images(queryFile);
+        cout << "Launching Hypercube..." << endl;
+        auto rawImages = read_mnist_images(data_file);
+        auto rawQueries = read_mnist_images(query_file);
         dataset = convertToDouble(rawImages);
         queries = convertToDouble(rawQueries);
-    }
-    else if (type == "SIFT")
-    {
-        auto rawVectors = readIFTData(inputFile);
-        auto rawQueries = readIFTData(queryFile);
-        dataset = convertToDouble(rawVectors);
-        queries = convertToDouble(rawQueries);
-    }
-    else
-    {
-        cerr << "Unknown dataset type!\n";
-        return 1;
-    }
-
-    cout << "Dataset and queries loaded successfully.\n";
-
-    // -------------- Run Selected Algorithm --------------
-    bool success = false;
-    if (useLSH)
-    {
-        // success = LSH_main();
-        if (success == 1)
-            cout << "LSH exited successfully" << endl;
-        else
-            cout << "LSH exited abruptly" << endl;
-    }
-    else if (useHypercube)
-    {
-        success = hypercube_main(dataset, queries, outputFile, kproj, w, M, probes, N, R, type, rangeSearch);
-        if (success == 1)
-            cout << "Hypercube exited successfully" << endl;
-        else
-            cout << "Hypercube exited abruptly" << endl;
-    }
-    else if (useIVFFLAT)
-    {
-        // success = IVFFLAT_main(dataset, queries, outputFile, kproj, w, M, probes, N, R, type, rangeSearch);
-        if (success == 1)
-            cout << "IVFFLAT exited successfully" << endl;
-        else
-            cout << "IVFFLAT exited abruptly" << endl;
-    }
-    else if (useIVFPQ)
-    {
-        // success = IVFPQ_main(dataset, queries, outputFile, kproj, w, M, probes, N, R, type, rangeSearch);
-        if (success == 1)
-            cout << "IVFPQ exited successfully" << endl;
-        else
-            cout << "IVFPQ exited abruptly" << endl;
-    }
-    else
-    {
-        cout << "No algorithm selected.\n";
+        success = hypercube_main(dataset, queries, output_file,kproj, params.w, M, probes, params.N, params.R, type, rangeSearch);
+        cout << (success ? "Hypercube exited successfully\n" : "Hypercube exited abruptly\n");
+    } else if (use_ivfflat) {
+        cout << "Launching IVFFLAT..." << endl;
+        //success = ivfflat_main(data_file, query_file, output_file,kclusters, nprobe, seed, params.N, params.R, type, rangeSearch);
+        cout << (success ? "IVFFLAT exited successfully\n" : "IVFFLAT exited abruptly\n");
+    } else if (use_ivfpq) {
+        cout << "Launching IVFPQ..." << endl;
+        //success = ivfpq_main(data_file, query_file, output_file,kclusters, nprobe, M, nbits, seed, params.N, params.R, type, rangeSearch);
+        cout << (success ? "IVFPQ exited successfully\n" : "IVFPQ exited abruptly\n");
+    } else {
+        cout << "No algorithm selected. Use -lsh, -hypercube, -ivfflat or -ivfpq\n";
     }
 
-    cout << "Program completed.\n";
-
-    return 0;
+    return success ? 0 : 1;
 }

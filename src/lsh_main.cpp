@@ -5,169 +5,200 @@
 #include <getopt.h>
 #include <fstream>
 #include <algorithm>
+#include <unordered_set>
+#include <iomanip>
 
 #include "mnist_reader.h"
 #include "lsh.h"
 #include "utils.h"
 
-// Simple cmd parsing; defaults match assignment
-int main(int argc, char** argv) {
+using namespace std;
 
-    /*
-    cout << "Hello project!" << endl;
-    string images_path = "dataset/train-images.idx3-ubyte"; // path to images
-    string labels_path = "dataset/train-labels.idx1-ubyte"; // path to images
-
-    auto images = read_mnist_images(images_path);
-    auto labels = read_mnist_labels(labels_path);
-
-    int n_rows = 28;
-    int n_cols = 28; 
-
-    //for(int i = 0; i < images[7].size(); i++){
-      //  cout << (int)images[7][i] << " ";
-    //}
+bool lsh_main(const string& data_file,
+              const string& query_file,
+              const string& output_file,
+              const LSHParams& params,
+              const string& type,
+              bool do_range) {
     
-    
-    for(int i = 0; i < 5; i++){
-        cout << "\n image label: " << (int)labels[i] << "\n\n";
-        for (int r = 0; r < n_rows; ++r) { 
-            for (int c = 0; c < n_cols; ++c) {
-                unsigned char pixel = images[i][r * n_cols + c]; 
-                cout << (pixel > 128 ? "#" : "."); // visualize 
-                } cout << "\n"; 
-            }
+    // Read dataset based on type
+    vector<vector<float>> data, queries;
+    if (type == "mnist") {
+        data = read_mnist_im(data_file);
+        queries = read_mnist_im(query_file);
+    } else if (type == "sift") {
+        //data = read_sift(data_file);
+        //queries = read_sift(query_file);
+    } else {
+        cerr << "Unknown dataset type: " << type << endl;
+        return false;
     }
 
-    string test1 = "dataset/t10k-images.idx3-ubyte"; // path to images
-    string test2 = "dataset/t10k-labels.idx1-ubyte"; // path to images
-
-    auto test = read_mnist_images(test1);
-    auto labeltest = read_mnist_labels(test2);
-
-    cout << "\n image label: " << (int)labels[19619] << "\n\n";
-    cout << "\n test label: " << (int)labeltest[0] << "\n\n";
-    cout << "\n DISTANCE IS : " << euclidean_distance(test[2],images[53196]) << endl;
-
-    return 0;*/
-    
-
-    std::string data_file="", query_file="", type="mnist", output_file="output.txt";
-    LSHParams params;
-    params.seed = 1; params.k = 4; params.L = 5; params.w = 4.0; params.N = 1; params.R = 2000.0;
-
-    bool use_lsh = false;
-    bool do_range = false;
-
-    // parse minimal args (expandable)
-    int opt;
-    while ((opt = getopt(argc, argv, "d:q:o:k:L:w:N:R:seed:ttype:lsh:range:")) != -1) {
-        // fallback: we'll parse manually simpler below
-        break;
-    }
-    // Simple manual parse for common flags (robust parsing would be longer)
-    for (int i=1;i<argc;i++) {
-        std::string a = argv[i];
-        if (a=="-d" && i+1<argc) data_file = argv[++i];
-        else if (a=="-q" && i+1<argc) query_file = argv[++i];
-        else if (a=="-o" && i+1<argc) output_file = argv[++i];
-        else if (a=="-k" && i+1<argc) params.k = std::stoi(argv[++i]);
-        else if (a=="-L" && i+1<argc) params.L = std::stoi(argv[++i]);
-        else if (a=="-w" && i+1<argc) params.w = std::stod(argv[++i]);
-        else if (a=="-N" && i+1<argc) params.N = std::stoi(argv[++i]);
-        else if (a=="-R" && i+1<argc) params.R = std::stod(argv[++i]);
-        else if (a=="--seed" && i+1<argc) params.seed = std::stoi(argv[++i]);
-        else if (a=="-type" && i+1<argc) type = argv[++i];
-        else if (a=="-lsh") use_lsh = true;
-        else if (a=="-range" && i+1<argc) do_range = (std::string(argv[++i])=="true");
+    if (data.empty() || queries.empty()) {
+        cerr << "Failed to read dataset or queries" << endl;
+        return false;
     }
 
-    if (data_file.empty() || query_file.empty() || !use_lsh) {
-        std::cout << "Usage example:\n./search -d train-images.idx3-ubyte -q t10k-images.idx3-ubyte -type mnist -lsh -k 4 -L 5 -w 4.0 -N 1 -R 2000 -o output.txt\n";
-        return 1;
-    }
+    cout << "Dataset size: " << data.size() << ", queries: " << queries.size() << endl;
+    cout << "Vector dimension: " << data[0].size() << endl;
 
-    // Read dataset (only mnist implemented here)
-    std::vector<std::vector<float>> data = read_mnist_images(data_file);
-    std::vector<std::vector<float>> queries = read_mnist_images(query_file);
-
-    std::cout << "Dataset size: " << data.size() << ", queries: " << queries.size() << std::endl;
-
-
-    LSH lsh((int)data[0].size(), params, std::max<size_t>(31, data.size()/4));
+    // Build LSH index
+    LSH lsh(static_cast<int>(data[0].size()), params);
     lsh.build(data);
+    cout << "LSH construction time: " << lsh.get_construction_time() << " seconds" << endl;
 
-
-
-    std::ofstream out(output_file);
-    if (!out.is_open()) { std::cerr << "Cannot open output file\n"; return 1; }
+    ofstream out(output_file);
+    if (!out.is_open()) {
+        cerr << "Cannot open output file: " << output_file << endl;
+        return false;
+    }
 
     out << "LSH\n";
-    Timer timer_total; timer_total.tic();
-    double sumApproxTime=0, sumTrueTime=0;
-    int totalQueries = (int)queries.size();
-    int successesRecall = 0;
-    for (int qi = 0; qi < 20 ; ++qi) {
-        const auto &q = queries[qi];
-        out << "Query: " << qi << "\n";
-        // approximate
-        Timer t1; t1.tic();
-        auto approx_ids = lsh.query(q, params.N);
-        double tApprox = t1.toc();
-        sumApproxTime += tApprox;
+    
+    // Performance metrics
+    double total_approx_time = 0.0;
+    double total_true_time = 0.0;
+    double total_af = 0.0;
+    double total_recall = 0.0;
+    int valid_af_queries = 0;
+    //int total_queries = static_cast<int>(queries.size());
+    int total_queries = 20;
 
-        // true
-        Timer t2; t2.tic();
-        // compute full distances
-        std::vector<std::pair<double,int>> all;
-        all.reserve(data.size());
-        for (size_t i=0;i<data.size();++i) all.emplace_back(euclidean_distance(q, data[i]), (int)i);
-        std::sort(all.begin(), all.end());
-        double tTrue = t2.toc();
-        sumTrueTime += tTrue;
-        
-        //cout << " first: " << all[0].first << " middle: " << all[34].first << " last:  " << all[data.size() - 1].first << endl;
-        
-        // write approx neighbors and distances
-        for (int i=0;i<params.N;i++) {
-            if (i < (int)approx_ids.size()) {
-                int id = approx_ids[i];
-                double distApprox = euclidean_distance(q, data[id]);
-                out << "Nearest neighbor-" << (i+1) << ": " << id << "\n";
-                out << "distanceApproximate: " << distApprox << "\n";
-                out << "distanceTrue: " << all[i].first << "\n";
+    for (int qi = 0; qi < total_queries; ++qi) {
+        const auto& q = queries[qi];
+        out << "Query: " << qi << "\n";
+
+        // Approximate search
+        Timer approx_timer;
+        approx_timer.tic();
+        auto approx_results = lsh.query(q, params.N);
+        double approx_time = approx_timer.toc();
+        total_approx_time += approx_time;
+
+        // True nearest neighbors (exhaustive search)
+        Timer true_timer;
+        true_timer.tic();
+        vector<pair<double, int>> true_neighbors;
+        true_neighbors.reserve(data.size());
+        for (size_t i = 0; i < data.size(); ++i) {
+            double dist = euclidean_distance(q, data[i]);
+            true_neighbors.emplace_back(dist, static_cast<int>(i));
+        }
+        sort(true_neighbors.begin(), true_neighbors.end());
+        double true_time = true_timer.toc();
+        total_true_time += true_time;
+
+        // Range search if requested
+        vector<int> range_neighbors;
+        if (do_range && params.R > 0.0) {
+            range_neighbors = lsh.range_query(q, params.R);
+        }
+
+        // Output results for each neighbor
+        for (int i = 0; i < params.N; ++i) {
+            out << "Nearest neighbor-" << (i + 1) << ": ";
+            if (i < static_cast<int>(approx_results.size())) {
+                out << approx_results[i].first;
             } else {
-                out << "Nearest neighbor-" << (i+1) << ": -1\n";
-                out << "distanceApproximate: inf\n";
-                out << "distanceTrue: " << all[i].first << "\n";
+                out << "-1";
+            }
+            out << "\n";
+            
+            out << "distanceApproximate: ";
+            if (i < static_cast<int>(approx_results.size())) {
+                out << fixed << setprecision(6) << approx_results[i].second;
+            } else {
+                out << "inf";
+            }
+            out << "\n";
+            
+            out << "distanceTrue: ";
+            if (i < static_cast<int>(true_neighbors.size())) {
+                out << fixed << setprecision(6) << true_neighbors[i].first;
+            } else {
+                out << "inf";
+            }
+            out << "\n";
+        }
+
+        // Output range neighbors
+        out << "R-near neighbors:";
+        if (!range_neighbors.empty()) {
+            for (int id : range_neighbors) {
+                out << " " << id;
             }
         }
+        out << "\n";
 
-        if (do_range) {
-            auto rn = lsh.range_query(q, params.R);
-            out << "R-near neighbors:\n";
-            for (int id: rn) out << id << "\n";
+        // Calculate approximation factor
+        double af_sum = 0.0;
+        int af_count = 0;
+        for (int i = 0; i < params.N; ++i) {
+            if (i < static_cast<int>(approx_results.size()) && 
+                i < static_cast<int>(true_neighbors.size())) {
+                double approx_dist = approx_results[i].second;
+                double true_dist = true_neighbors[i].first;
+                if (true_dist > 1e-12) { // Avoid division by zero
+                    af_sum += approx_dist / true_dist;
+                    af_count++;
+                }
+            }
         }
+        
+        double af = (af_count > 0) ? (af_sum / af_count) : 0.0;
+        if (af_count > 0) {
+            total_af += af;
+            valid_af_queries++;
+        }
+        out << "Average AF: " << fixed << setprecision(6) << af << "\n";
 
-        // AF and recall
-        double af = 0.0;
-        if (!approx_ids.empty()) {
-            double approxDist = euclidean_distance(q, data[approx_ids[0]]);
-            double trueDist = all[0].first;
-            af = approxDist / trueDist;
+        // Calculate recall
+        unordered_set<int> approx_set;
+        for (const auto& result : approx_results) {
+            approx_set.insert(result.first);
         }
-        out << "Average AF: " << af << "\n";
-        // recall@N: check whether true NN exists in approx_ids
-        bool found=false;
-        for (int id: approx_ids) if (id == all[0].second) found=true;
-        if (found) successesRecall++;
-        double recallAtN = double(successesRecall)/(qi+1);
-        out << "Recall@N: " << recallAtN << "\n";
-        out << "QPS: " << (1.0 / (sumApproxTime/(qi+1))) << "\n";
-        out << "tApproximateAverage: " << (sumApproxTime/(qi+1)) << "\n";
-        out << "tTrueAverage: " << (sumTrueTime/(qi+1)) << "\n\n";
+        
+        unordered_set<int> true_set;
+        for (int i = 0; i < params.N && i < static_cast<int>(true_neighbors.size()); ++i) {
+            true_set.insert(true_neighbors[i].second);
+        }
+        
+        int common = 0;
+        for (int true_id : true_set) {
+            if (approx_set.count(true_id)) {
+                common++;
+            }
+        }
+        
+        double recall = (params.N > 0) ? (static_cast<double>(common) / params.N) : 0.0;
+        total_recall += recall;
+        out << "Recall@N: " << fixed << setprecision(6) << recall << "\n";
+
+        // QPS and times
+        double qps = (approx_time > 0.0) ? (1.0 / approx_time) : 0.0;
+        out << "QPS: " << fixed << setprecision(6) << qps << "\n";
+        out << "tApproximateAverage: " << fixed << setprecision(6) << approx_time << "\n";
+        out << "tTrueAverage: " << fixed << setprecision(6) << true_time << "\n\n";
     }
-    double totalTime = timer_total.toc();
-    std::cout << "Done. Output in " << output_file << "\nTotal time: " << totalTime << "s\n";
-    return 0;
+
+    // Calculate summary statistics
+    double mean_af = (valid_af_queries > 0) ? (total_af / valid_af_queries) : 0.0;
+    double mean_recall = (total_queries > 0) ? (total_recall / total_queries) : 0.0;
+    double mean_approx_time = (total_queries > 0) ? (total_approx_time / total_queries) : 0.0;
+    double mean_true_time = (total_queries > 0) ? (total_true_time / total_queries) : 0.0;
+    double mean_qps = (mean_approx_time > 0.0) ? (1.0 / mean_approx_time) : 0.0;
+
+    // Output summary
+    out << "=== SUMMARY ===\n";
+    out << "Queries: " << total_queries << "\n";
+    out << "Mean AF: " << fixed << setprecision(6) << mean_af << "\n";
+    out << "Mean Recall@N: " << fixed << setprecision(6) << mean_recall << "\n";
+    out << "Average QPS: " << fixed << setprecision(6) << mean_qps << "\n";
+    out << "Mean tApproximate: " << fixed << setprecision(6) << mean_approx_time << "\n";
+    out << "Mean tTrue: " << fixed << setprecision(6) << mean_true_time << "\n";
+
+    cout << "LSH completed. Results written to: " << output_file << endl;
+    cout << "Average Recall@N: " << mean_recall << ", Average AF: " << mean_af << endl;
+    
+    return true;
 }
