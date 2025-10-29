@@ -11,7 +11,7 @@ struct KMeansParams {
     int seed = 1;
     int k = 50;           // number of clusters
     int max_iters = 100;  // maximum iterations
-    double tol = 1e-4;    // convergence tolerance
+    double tol = 1e-3;    // convergence tolerance
 };
 
 class KMeans {
@@ -36,11 +36,14 @@ public:
     // Calculate silhouette score for clustering quality
     double silhouette_score(const std::vector<std::vector<float>>& data) const;
     
-    // Calculate within-cluster sum of squares (WCSS) - k-means objective
-    double wcss(const std::vector<std::vector<float>>& data) const;
+    //Kmeans objective is to minimize the cluster sum
+    double cluster_sum(const std::vector<std::vector<float>>& data) const;
 
     // k-medians objective (alternative)
     double kmedians_objective(const std::vector<std::vector<float>>& data) const;
+
+    // Distance functions
+    double squared_euclidean(const std::vector<float>& a, const std::vector<float>& b) const;
 
 private:
     KMeansParams params;
@@ -55,10 +58,6 @@ private:
     // Lloyd's algorithm steps:
     void expectation_step(const std::vector<std::vector<float>>& data);  // Assignment
     bool maximization_step(const std::vector<std::vector<float>>& data); // Update centers
-    
-    // Distance functions
-    double squared_euclidean(const std::vector<float>& a, const std::vector<float>& b) const;
-    double euclidean(const std::vector<float>& a, const std::vector<float>& b) const;
 };
 
 #endif

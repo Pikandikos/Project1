@@ -3,6 +3,7 @@
 #include <queue>
 
 #include "kmeans.h"
+#include "utils.h"
 
 using namespace std;
 
@@ -31,15 +32,15 @@ vector<int> KMeans::fit(const vector<vector<float>>& data) {
         // M-step: Update centers (Maximization)
         converged = maximization_step(data);
         
-        if (iter % 10 == 0) {
-            double current_wcss = wcss(data);
-            cout << "Iteration " << iter << ", WCSS = " << current_wcss << endl;
-        }
+        /*if (iter % 10 == 0) {
+            double current_cluster_sum = cluster_sum(data);
+            cout << "Iteration " << iter << ", cluster_sum = " << current_cluster_sum << endl;
+        }*/
     }
     
     cout << "Lloyd's algorithm converged after " << iterations << " iterations" << endl;
-    cout << "Final k-means objective (WCSS): " << wcss(data) << endl;
-    cout << "Silhouette score: " << silhouette_score(data) << endl;
+    //cout << "Final k-means objective (cluster_sum): " << cluster_sum(data) << endl;
+    //cout << "Silhouette score: " << silhouette_score(data) << endl;
     
     return labels;
 }
@@ -193,11 +194,7 @@ double KMeans::squared_euclidean(const vector<float>& a, const vector<float>& b)
     return sum;
 }
 
-double KMeans::euclidean(const vector<float>& a, const vector<float>& b) const {
-    return sqrt(squared_euclidean(a, b));
-}
-
-double KMeans::wcss(const vector<vector<float>>& data) const {
+double KMeans::cluster_sum(const vector<vector<float>>& data) const {
     double total = 0.0;
     for (size_t i = 0; i < data.size(); ++i) {
         total += squared_euclidean(data[i], centers[labels[i]]);
@@ -208,72 +205,86 @@ double KMeans::wcss(const vector<vector<float>>& data) const {
 double KMeans::kmedians_objective(const vector<vector<float>>& data) const {
     double total = 0.0;
     for (size_t i = 0; i < data.size(); ++i) {
-        total += euclidean(data[i], centers[labels[i]]);
+        total += euclidean_distance(data[i], centers[labels[i]]);
     }
     return total;
 }
 
 double KMeans::silhouette_score(const vector<vector<float>>& data) const {
     int n = data.size();
-    if (n == 0) return 0.0;
+    if (n == 0 || n == 1) return 0.0;
     
-    vector<double> silhouette_scores(n);
+    // Precompute cluster centers and sizes
+    vector<vector<float>> cluster_centers(params.k);
+    vector<int> cluster_sizes(params.k, 0);
     
-    #pragma omp parallel for
+    // Calculate cluster centers
+    for (int c = 0; c < params.k; ++c) {
+        cluster_centers[c] = vector<float>(data[0].size(), 0.0f);
+    }
+    
+    for (int i = 0; i < n; ++i) {
+        int cluster = labels[i];
+        cluster_sizes[cluster]++;
+        for (size_t dim = 0; dim < data[i].size(); ++dim) {
+            cluster_centers[cluster][dim] += data[i][dim];
+        }
+    }
+    
+    for (int c = 0; c < params.k; ++c) {
+        if (cluster_sizes[c] > 0) {
+            for (size_t dim = 0; dim < cluster_centers[c].size(); ++dim) {
+                cluster_centers[c][dim] /= cluster_sizes[c];
+            }
+        }
+    }
+    
+    // Precompute intra-cluster distances using centers as approximation
+    vector<double> intra_cluster_dist(params.k, 0.0);
+    for (int c = 0; c < params.k; ++c) {
+        if (cluster_sizes[c] > 0) {
+            // Use average distance to center as approximation for intra-cluster distance
+            for (int i = 0; i < n; ++i) {
+                if (labels[i] == c) {
+                    intra_cluster_dist[c] += euclidean_distance(data[i], cluster_centers[c]);
+                }
+            }
+            intra_cluster_dist[c] /= cluster_sizes[c];
+        }
+    }
+    
+    vector<double> silhouette_scores(n, 0.0);
+    
     for (int i = 0; i < n; ++i) {
         int cluster_i = labels[i];
         
-        // Calculate a(i): average distance to points in same cluster
-        double a_i = 0.0;
-        int count_same = 0;
-        
-        for (int j = 0; j < n; ++j) {
-            if (i != j && labels[j] == cluster_i) {
-                a_i += euclidean(data[i], data[j]);
-                count_same++;
-            }
+        if (cluster_sizes[cluster_i] <= 1) {
+            silhouette_scores[i] = 0.0;
+            continue;
         }
-        a_i = (count_same > 0) ? a_i / count_same : 0.0;
         
-        // Calculate b(i): minimum average distance to other clusters
+        // Use precomputed intra-cluster distance (much faster)
+        double a_i = intra_cluster_dist[cluster_i];
+        
+        // Find nearest cluster using center distances
         double b_i = numeric_limits<double>::max();
-        
         for (int c = 0; c < params.k; ++c) {
-            if (c == cluster_i) continue;
+            if (c == cluster_i || cluster_sizes[c] == 0) continue;
             
-            double avg_dist = 0.0;
-            int count_other = 0;
-            
-            for (int j = 0; j < n; ++j) {
-                if (labels[j] == c) {
-                    avg_dist += euclidean(data[i], data[j]);
-                    count_other++;
-                }
-            }
-            
-            if (count_other > 0) {
-                avg_dist /= count_other;
-                if (avg_dist < b_i) {
-                    b_i = avg_dist;
-                }
+            double dist_to_center = euclidean_distance(data[i], cluster_centers[c]);
+            if (dist_to_center < b_i) {
+                b_i = dist_to_center;
             }
         }
         
-        // Handle case where b_i wasn't updated (only one cluster)
         if (b_i == numeric_limits<double>::max()) {
             b_i = a_i;
         }
         
-        // Calculate silhouette for this point
         double max_ab = max(a_i, b_i);
-        if (max_ab == 0.0) {
-            silhouette_scores[i] = 0.0;
-        } else {
-            silhouette_scores[i] = (b_i - a_i) / max_ab;
-        }
+        silhouette_scores[i] = (max_ab > 0.0) ? (b_i - a_i) / max_ab : 0.0;
     }
     
-    // Return average silhouette score
     double total = 0.0;
     for (double score : silhouette_scores) total += score;
     return total / n;

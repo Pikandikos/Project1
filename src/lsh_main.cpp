@@ -9,6 +9,7 @@
 #include <iomanip>
 
 #include "mnist_reader.h"
+#include "sift_reader.h"
 #include "lsh.h"
 #include "utils.h"
 
@@ -27,8 +28,8 @@ bool lsh_main(const string& data_file,
         data = read_mnist_im(data_file);
         queries = read_mnist_im(query_file);
     } else if (type == "sift") {
-        //data = read_sift(data_file);
-        //queries = read_sift(query_file);
+        data = read_sift(data_file);
+        queries = read_sift(query_file);
     } else {
         cerr << "Unknown dataset type: " << type << endl;
         return false;

@@ -11,6 +11,10 @@
 #include "lsh.h"        //για LSHParams και αν έχεις δηλώσεις wrapper
 //include headers για hypercube/ivf αν υπάρχουν (όπου δηλώνεται hypercube_main_files κλπ)
 #include "hypercube.h"
+
+#include "kmeans.h"
+#include "kmeans_main.h"
+
 //#include "ivfflat.h"
 //#include "ivfpq.h"
 
@@ -82,11 +86,11 @@ int main(int argc, char** argv) {
         cout << (success ? "Hypercube exited successfully\n" : "Hypercube exited abruptly\n");
     } else if (use_ivfflat) {
         cout << "Launching IVFFLAT..." << endl;
-        //success = ivfflat_main(data_file, query_file, output_file,kclusters, nprobe, seed, params.N, params.R, type, rangeSearch);
+        success = ivfflat_main(data_file, query_file, output_file, kclusters, nprobe, seed, params.N, params.R, type, rangeSearch);
         cout << (success ? "IVFFLAT exited successfully\n" : "IVFFLAT exited abruptly\n");
     } else if (use_ivfpq) {
         cout << "Launching IVFPQ..." << endl;
-        //success = ivfpq_main(data_file, query_file, output_file,kclusters, nprobe, M, nbits, seed, params.N, params.R, type, rangeSearch);
+        success = ivfpq_main(data_file, query_file, output_file, kclusters, nprobe, M, nbits, seed, params.N, params.R, type, rangeSearch);
         cout << (success ? "IVFPQ exited successfully\n" : "IVFPQ exited abruptly\n");
     } else {
         cout << "No algorithm selected. Use -lsh, -hypercube, -ivfflat or -ivfpq\n";
