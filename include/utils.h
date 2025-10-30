@@ -10,7 +10,7 @@ using namespace std;
 // Euclidean distance between two vectors
 double euclidean_distance(const vector<float>& v1, const vector<float>& v2);
 
-// Fast distance function
+// Faster distance function
 double squared_euclidean(const vector<float>& a, const vector<float>& b);
 
 // Calculate time
