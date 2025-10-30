@@ -10,7 +10,7 @@
 using namespace std;
 
 struct IVFPQParams {
-    int kclusters = 50;    // Number of Voronoi cells (coarse quantizer)
+    int kclusters = 50;    // Number of Voronoi cells (cluster quantizer)
     int nprobe = 5;        // Number of cells to probe during search
     int M = 16;            // Number of subvectors for product quantization
     int nbits = 8;         // Bits per subquantizer (2^nbits centroids per subspace)
@@ -32,19 +32,19 @@ public:
     // Range query - find all vectors within radius R
     vector<int> range_query(const vector<float>& q, double R) const;
     
-    // Get coarse cluster centers
-    const vector<vector<float>>& get_coarse_centroids() const { return coarse_quantizer.get_centers(); }
+    // Get cluster cluster centers
+    const vector<vector<float>>& get_cluster_centroids() const { return cluster_quantizer.get_centers(); }
 
 private:
     IVFPQParams params;
-    KMeans coarse_quantizer;  // First-level: Voronoi cells
+    KMeans cluster_quantizer;  // First-level: Voronoi cells
     
     // Product Quantization components
     vector<vector<vector<float>>> pq_centroids;  // [M][2^nbits][sub_dim]
     vector<vector<uint8_t>> pq_codes;  // [n][M] - compressed representations
     
-    // Inverted file structure: for each coarse cluster, store compressed vectors
-    vector<vector<int>> inverted_lists;  // Point indices per coarse cluster
+    // Inverted file structure: for each cluster cluster, store compressed vectors
+    vector<vector<int>> inverted_lists;  // Point indices per cluster cluster
     vector<vector<float>> data;          // Original data (for true distance computation)
     
     // Helper functions

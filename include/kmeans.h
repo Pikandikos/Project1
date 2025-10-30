@@ -10,7 +10,7 @@
 using namespace std;
 
 struct KMeansParams {
-    int seed = 1;
+    int seed = 1;         // random seed
     int k = 50;           // number of clusters
     int max_iters = 100;  // maximum iterations
     double tol = 1e-3;    // convergence tolerance
@@ -18,6 +18,7 @@ struct KMeansParams {
 
 class KMeans {
 public:
+    // Constructor
     KMeans(const KMeansParams& params = KMeansParams());
     
     // Fit k-means to data using Lloyd's algorithm (EM)
@@ -39,6 +40,8 @@ public:
     double silhouette_score(const vector<vector<float>>& data) const;
 
 private:
+
+    // kmeans parameters
     KMeansParams params;
     vector<vector<float>> centers;
     vector<int> labels;

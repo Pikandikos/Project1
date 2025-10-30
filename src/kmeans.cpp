@@ -31,7 +31,8 @@ vector<int> KMeans::fit(const vector<vector<float>>& data) {
         
         // M-step: Update centers (Maximization)
         converged = maximization_step(data);
-        
+        // EARLY STOPPING - break as soon as converged
+        if (converged) break;
     }
     
     cout << "Lloyd's algorithm converged after " << iterations << " iterations" << endl;
@@ -83,7 +84,6 @@ void KMeans::expectation_step(const vector<vector<float>>& data) {
     labels.resize(n);
     
     // Assign each point to nearest centroid (Voronoi cell assignment)
-    #pragma omp parallel for
     for (int i = 0; i < n; ++i) {
         double min_dist = numeric_limits<double>::max();
         int best_cluster = 0;
@@ -127,25 +127,9 @@ bool KMeans::maximization_step(const vector<vector<float>>& data) {
                 converged = false;
             }
         } else {
-            // Empty cluster - reinitialize using k-means++ strategy
-            cout << "Warning: Empty cluster " << i << ", reinitializing..." << endl;
-            vector<double> distances(data.size());
-            double total_dist = 0.0;
-            for (size_t j = 0; j < data.size(); ++j) {
-                distances[j] = squared_euclidean(data[j], centers[labels[j]]);
-                total_dist += distances[j];
-            }
-            
-            uniform_real_distribution<double> dist(0.0, total_dist);
-            double threshold = dist(seed);
-            double cumulative = 0.0;
-            for (size_t j = 0; j < data.size(); ++j) {
-                cumulative += distances[j];
-                if (cumulative >= threshold) {
-                    new_centers[i] = data[j];
-                    break;
-                }
-            }
+            // Empty cluster ,choose a random data point
+            uniform_int_distribution<int> uniform(0, data.size() - 1);
+            new_centers[i] = data[uniform(seed)];
             converged = false;
         }
     }
@@ -161,7 +145,6 @@ vector<int> KMeans::predict(const vector<vector<float>>& data) const {
     
     vector<int> predictions(data.size());
     
-    #pragma omp parallel for
     for (size_t i = 0; i < data.size(); ++i) {
         double min_dist = numeric_limits<double>::max();
         int best_cluster = -1;
@@ -251,8 +234,10 @@ double KMeans::silhouette_score(const vector<vector<float>>& data) const {
             b_i = a_i;
         }
         
+        // store silhouette score
         double max_ab = max(a_i, b_i);
-        silhouette_scores[i] = (max_ab > 0.0) ? (b_i - a_i) / max_ab : 0.0;
+        silhouette_scores[i] = (b_i - a_i) / max_ab;
+
     }
     
     double total = 0.0;

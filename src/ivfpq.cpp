@@ -12,11 +12,11 @@
 using namespace std;
 
 IVFPQ::IVFPQ(const IVFPQParams& params) : params(params) {
-    // Initialize coarse quantizer (first level k-means)
+    // Initialize
     KMeansParams kmeans_params;
     kmeans_params.k = params.kclusters;
     kmeans_params.seed = params.seed;
-    coarse_quantizer = KMeans(kmeans_params);
+    cluster_quantizer = KMeans(kmeans_params);
 }
 
 vector<vector<float>> IVFPQ::split_vector(const vector<float>& v) const {
@@ -42,32 +42,32 @@ void IVFPQ::build(const vector<vector<float>>& data) {
     int n_pq_centroids = 1 << params.nbits;  // 2^nbits centroids per subspace
     
     cout << "=== Building IVFPQ Index ===" << endl;
-    cout << "Coarse quantizer: k=" << params.kclusters << " clusters" << endl;
+    cout << "Cluster quantizer: k=" << params.kclusters << " clusters" << endl;
     cout << "Product quantization: M=" << params.M << " subvectors, " 
          << n_pq_centroids << " centroids per subspace" << endl;
     cout << "Subvector dimension: " << sub_dim << endl;
     
-    // === STEP 1: Coarse Quantization ===
-    cout << "\n1. Building coarse quantizer..." << endl;
-    vector<int> coarse_labels = coarse_quantizer.fit(data);
+    // 1: Cluster Quantization ===
+    cout << "\n1. Building cluster quantizer..." << endl;
+    vector<int> cluster_labels = cluster_quantizer.fit(data);
     
-    // Build inverted lists for coarse quantization
+    // Build inverted lists for cluster quantization
     inverted_lists.resize(params.kclusters);
     for (int i = 0; i < n; ++i) {
-        inverted_lists[coarse_labels[i]].push_back(i);
+        inverted_lists[cluster_labels[i]].push_back(i);
     }
     
     // === STEP 2: Compute Residuals ===
     cout << "2. Computing residuals..." << endl;
-    const auto& coarse_centers = coarse_quantizer.get_centers();
+    const auto& cluster_centers = cluster_quantizer.get_centers();
     vector<vector<vector<float>>> residuals(params.kclusters);
     
-    // For each point, compute residual = point - coarse_center
+    // For each point, compute residual = point - cluster_center
     for (int i = 0; i < n; ++i) {
-        int cluster_id = coarse_labels[i];
+        int cluster_id = cluster_labels[i];
         vector<float> residual(dim);
         for (int d = 0; d < dim; ++d) {
-            residual[d] = data[i][d] - coarse_centers[cluster_id][d];
+            residual[d] = data[i][d] - cluster_centers[cluster_id][d];
         }
         residuals[cluster_id].push_back(residual);
     }
@@ -113,12 +113,12 @@ void IVFPQ::build(const vector<vector<float>>& data) {
     pq_codes.resize(n, vector<uint8_t>(params.M));
     
     for (int i = 0; i < n; ++i) {
-        int coarse_cluster = coarse_labels[i];
+        int cluster_cluster = cluster_labels[i];
         
         // Compute residual for this point
         vector<float> residual(dim);
         for (int d = 0; d < dim; ++d) {
-            residual[d] = data[i][d] - coarse_centers[coarse_cluster][d];
+            residual[d] = data[i][d] - cluster_centers[cluster_cluster][d];
         }
         
         // Split residual and quantize each part
@@ -174,30 +174,30 @@ double IVFPQ::asymmetric_distance(const vector<uint8_t>& code,
 }
 
 vector<pair<int, double>> IVFPQ::query(const vector<float>& q, int N) const {
-    const auto& coarse_centers = coarse_quantizer.get_centers();
+    const auto& cluster_centers = cluster_quantizer.get_centers();
     int dim = data[0].size();
     
-    cout << "IVFPQ: Processing query, finding nearest coarse clusters..." << endl;
+    cout << "IVFPQ: Processing query with ASYMMETRIC distance computation..." << endl;
     
-    // === STEP 1: Find nearest coarse clusters ===
-    vector<pair<double, int>> coarse_dists;
+    // 1: Find nearest clusters
+    vector<pair<double, int>> cluster_dists;
     for (int i = 0; i < params.kclusters; ++i) {
-        double dist = squared_euclidean(q, coarse_centers[i]);
-        coarse_dists.emplace_back(dist, i);
+        double dist = squared_euclidean(q, cluster_centers[i]);
+        cluster_dists.emplace_back(dist, i);
     }
-    sort(coarse_dists.begin(), coarse_dists.end());
+    sort(cluster_dists.begin(), cluster_dists.end());
     
-    // === STEP 2: Build lookup tables for each probed cluster ===
+    // 2: Build lookup tables for each probed cluster
     vector<vector<vector<double>>> cluster_LUTs;
     int probes_used = min(params.nprobe, params.kclusters);
     
     for (int i = 0; i < probes_used; ++i) {
-        int cluster_id = coarse_dists[i].second;
+        int cluster_id = cluster_dists[i].second;
         
-        // Compute residual: query - coarse_center
+        // Compute residual = query - cluster_center
         vector<float> residual(dim);
         for (int d = 0; d < dim; ++d) {
-            residual[d] = q[d] - coarse_centers[cluster_id][d];
+            residual[d] = q[d] - cluster_centers[cluster_id][d];
         }
         
         // Build lookup table for this cluster
@@ -206,39 +206,36 @@ vector<pair<int, double>> IVFPQ::query(const vector<float>& q, int N) const {
         cluster_LUTs.push_back(LUT);
     }
     
-    // === STEP 3: Search in probed clusters and rank by PQ distance ===
-    vector<pair<double, int>> scored_candidates;  // (pq_score, point_id)
+    // 3: Search in probed clusters and rank by ASYMMETRIC PQ distance
+    vector<pair<double, int>> scored_candidates;  // (pq_distance, point_id)
     
     for (int i = 0; i < probes_used; ++i) {
-        int cluster_id = coarse_dists[i].second;
+        int cluster_id = cluster_dists[i].second;
         const auto& LUT = cluster_LUTs[i];
         
-        // Score all points in this cluster using PQ
+        // Score all points in this cluster using ASYMMETRIC distance
         for (int point_idx : inverted_lists[cluster_id]) {
-            double pq_score = asymmetric_distance(pq_codes[point_idx], LUT);
-            scored_candidates.emplace_back(pq_score, point_idx);
+            double pq_distance = asymmetric_distance(pq_codes[point_idx], LUT);
+            scored_candidates.emplace_back(pq_distance, point_idx);
         }
     }
     
-    // === STEP 4: Sort by PQ score and take top N ===
+    // 4: Sort by ASYMMETRIC distance and take top N
     sort(scored_candidates.begin(), scored_candidates.end());
     
     vector<pair<int, double>> final_results;
     int result_count = min(N, static_cast<int>(scored_candidates.size()));
     
-    cout << "IVFPQ: Found " << scored_candidates.size() << " candidates, returning top " 
-         << result_count << " with ACTUAL distances" << endl;
-    
+    // Return ASYMMETRIC distances
     for (int i = 0; i < result_count; ++i) {
         int point_id = scored_candidates[i].second;
+        double asymmetric_dist = sqrt(scored_candidates[i].first); // Convert squared to actual distance
         
-        // CRITICAL: Compute and return the ACTUAL Euclidean distance
-        double actual_distance = euclidean_distance(q, data[point_id]);
-        final_results.emplace_back(point_id, actual_distance);
-        
-        cout << "  Candidate " << i << ": point " << point_id 
-             << ", actual_dist = " << actual_distance << endl;
+        final_results.emplace_back(point_id, asymmetric_dist);
     }
+    
+    cout << "IVFPQ: Found " << scored_candidates.size() << " candidates, returning top " 
+         << result_count << " with ASYMMETRIC distances" << endl;
     
     return final_results;
 }
