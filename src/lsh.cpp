@@ -10,17 +10,18 @@
 #include "utils.h"
 
 using namespace std;
-using namespace std::chrono;
+using namespace chrono;
 
 LSH::LSH(int dim_, const LSHParams& p, size_t table_size_)
-    : dim(dim_), params(p), table_size(table_size_), rng(p.seed), construction_time(0.0) {
+    : dim(dim_), params(p), table_size(table_size_), seed(p.seed), construction_time(0.0) {
     
+    // Resize vectors
     vs.resize(params.L);
     ts.resize(params.L);
     rints.resize(params.L);
     tables.resize(params.L);
-    buckets_idx.resize(params.L);
 
+    // Distributions
     normal_distribution<float> nd(0.0f, 1.0f);
     uniform_real_distribution<double> ud(0.0, params.w);
     uniform_int_distribution<int64_t> rid(1, (1LL << 30) - 1);
@@ -31,10 +32,10 @@ LSH::LSH(int dim_, const LSHParams& p, size_t table_size_)
         rints[i].resize(params.k);
         for (int j = 0; j < params.k; ++j) {
             for (int d = 0; d < dim; ++d) {
-                vs[i][j][d] = nd(rng);
+                vs[i][j][d] = nd(seed);
             }
-            ts[i][j] = ud(rng);
-            rints[i][j] = rid(rng);
+            ts[i][j] = ud(seed);
+            rints[i][j] = rid(seed);
         }
     }
 }
@@ -51,8 +52,8 @@ int64_t LSH::compute_id(int table_id, const vector<float>& v) {
         sum += rints[table_id][j] * h;
     }
 
-    const uint64_t M = ((uint64_t)1 << 32) - 5;
-    return sum % M;
+    const uint64_t Mod = ((uint64_t)1 << 32) - 5;
+    return sum % Mod;
 }
 
 int LSH::compute_bucket(int64_t fullID) {
@@ -60,24 +61,26 @@ int LSH::compute_bucket(int64_t fullID) {
 }
 
 void LSH::build(const vector<vector<float>>& data) {
+    // Calculate time
     auto start = high_resolution_clock::now();
     
     data_ptr = &data;
     size_t n = data.size();
+
+    // Heuristic choice for better performance
     table_size = max<size_t>(31, n / 8);
 
     for (int i = 0; i < params.L; ++i) {
         tables[i].clear();
-        buckets_idx[i].clear();
     }
 
+    // Build tables
     for (size_t id = 0; id < n; ++id) {
         const auto& vec = data[id];
         for (int i = 0; i < params.L; ++i) {
             int64_t fullID = compute_id(i, vec);
             int bucket = compute_bucket(fullID);
             tables[i][bucket].emplace_back(fullID, static_cast<int>(id));
-            buckets_idx[i].push_back(bucket);
         }
     }
     
@@ -85,13 +88,15 @@ void LSH::build(const vector<vector<float>>& data) {
     construction_time = duration_cast<duration<double>>(end - start).count();
 }
 
-vector<pair<int, double>> LSH::query(const vector<float>& q, int N) {
+// Helper method to get candidate points from all tables and neighboring buckets
+unordered_set<int> LSH::get_candidates(const vector<float>& q) {
     unordered_set<int> candidates;
     
-    // Collect candidates from all tables
     for (int i = 0; i < params.L; ++i) {
         int64_t queryFullID = compute_id(i, q);
         int bucket = compute_bucket(queryFullID);
+        
+        // Check main bucket
         auto it = tables[i].find(bucket);
         if (it != tables[i].end()) {
             for (const auto& entry : it->second) {
@@ -99,12 +104,10 @@ vector<pair<int, double>> LSH::query(const vector<float>& q, int N) {
             }
         }
 
-        // Strategy 2: Also check neighboring buckets for high recall
-        // Fix: cast table_size to int64_t for the calculation
+        // Check neighboring buckets
         vector<int> neighbor_buckets;
         int64_t table_size_int = static_cast<int64_t>(table_size);
         
-        // Calculate neighboring buckets with proper unsigned handling
         int prev_bucket = static_cast<int>((bucket - 1 + table_size_int) % table_size_int);
         int next_bucket = static_cast<int>((bucket + 1) % table_size_int);
         
@@ -119,8 +122,13 @@ vector<pair<int, double>> LSH::query(const vector<float>& q, int N) {
                 }
             }
         }
-
     }
+    
+    return candidates;
+}
+
+vector<pair<int, double>> LSH::query(const vector<float>& q, int N) {
+    unordered_set<int> candidates = get_candidates(q);
 
     // Calculate distances and sort
     vector<pair<double, int>> cand;
@@ -132,62 +140,28 @@ vector<pair<int, double>> LSH::query(const vector<float>& q, int N) {
     
     sort(cand.begin(), cand.end());
     
-    // Return top N results with distances
-    vector<pair<int, double>> result;
+    // Return top N candidates based on distances
+    vector<pair<int, double>> neighbours;
     size_t result_count = min<size_t>(N, cand.size());
-    result.reserve(result_count);
+    neighbours.reserve(result_count);
     for (size_t i = 0; i < result_count; ++i) {
-        result.emplace_back(cand[i].second, cand[i].first);
+        neighbours.emplace_back(cand[i].second, cand[i].first);
     }
     
-    return result;
+    return neighbours;
 }
 
 vector<int> LSH::range_query(const vector<float>& q, double R) {
-    unordered_set<int> candidates;
+    unordered_set<int> candidates = get_candidates(q);
+    vector<int> neighbours;
     
-    for (int i = 0; i < params.L; ++i) {
-        int64_t queryFullID = compute_id(i, q);
-        int bucket = compute_bucket(queryFullID);
-        auto it = tables[i].find(bucket);
-        if (it != tables[i].end()) {
-            for (const auto& entry : it->second) {
-                candidates.insert(entry.second);
-            }
-        }
-
-        // Strategy 2: Also check neighboring buckets for high recall
-        // Fix: cast table_size to int64_t for the calculation
-        vector<int> neighbor_buckets;
-        int64_t table_size_int = static_cast<int64_t>(table_size);
-        
-        // Calculate neighboring buckets with proper unsigned handling
-        int prev_bucket = static_cast<int>((bucket - 1 + table_size_int) % table_size_int);
-        int next_bucket = static_cast<int>((bucket + 1) % table_size_int);
-        
-        neighbor_buckets.push_back(prev_bucket);
-        neighbor_buckets.push_back(next_bucket);
-        
-        for (int neighbor_bucket : neighbor_buckets) {
-            auto neighbor_it = tables[i].find(neighbor_bucket);
-            if (neighbor_it != tables[i].end()) {
-                for (const auto& entry : neighbor_it->second) {
-                    candidates.insert(entry.second);
-                }
-            }
-        }
-
-    }
-
-    
-    
-    vector<int> result;
+    // if candidate distance is below threshold R keep it.
     for (int id : candidates) {
         double dist = euclidean_distance(q, (*data_ptr)[id]);
         if (dist <= R) {
-            result.push_back(id);
+            neighbours.push_back(id);
         }
     }
     
-    return result;
+    return neighbours;
 }

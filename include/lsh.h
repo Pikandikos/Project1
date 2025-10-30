@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 #include <random>
 #include <cstdint>
 #include <utility>
@@ -10,17 +11,17 @@
 
 using namespace std;
 
-//Default parameters
+// Default parameters
 struct LSHParams {
     int seed = 1;
     int k = 4;
     int L = 5;
     double w = 4.0;
     int N = 1;
-    double R = 2000.0;
+    double R = 2000.0; 
 };
 
-//LSH Class
+// LSH Class
 class LSH {
 public:
     //Constructor
@@ -35,10 +36,13 @@ public:
     double get_construction_time() const { return construction_time; }
     
 private:
+    // data dimentions
     int dim;
+    // algorithm parameters
     LSHParams params;
     size_t table_size;
-    mt19937 rng;
+    // random seed for number generator
+    mt19937 seed;
     double construction_time;
 
     //DISTRIBUTIONS
@@ -48,13 +52,13 @@ private:
     
     //Tables
     vector<unordered_map<int, vector<pair<int64_t, int>>>> tables;
-    vector<vector<int>> buckets_idx;
-    
+
     const vector<vector<float>>* data_ptr = nullptr;
     
     //Helper functions
     int compute_bucket(int64_t fullID);
     int64_t compute_id(int table_id, const vector<float>& v);
+    unordered_set<int> get_candidates(const std::vector<float>& query_point);
 };
 
 //Lsh main function

@@ -8,7 +8,7 @@
 using namespace std;
 
 KMeans::KMeans(const KMeansParams& params) 
-    : params(params), iterations(0), rng(params.seed) {
+    : params(params), iterations(0), seed(params.seed) {
 }
 
 vector<int> KMeans::fit(const vector<vector<float>>& data) {
@@ -32,15 +32,9 @@ vector<int> KMeans::fit(const vector<vector<float>>& data) {
         // M-step: Update centers (Maximization)
         converged = maximization_step(data);
         
-        /*if (iter % 10 == 0) {
-            double current_cluster_sum = cluster_sum(data);
-            cout << "Iteration " << iter << ", cluster_sum = " << current_cluster_sum << endl;
-        }*/
     }
     
     cout << "Lloyd's algorithm converged after " << iterations << " iterations" << endl;
-    //cout << "Final k-means objective (cluster_sum): " << cluster_sum(data) << endl;
-    //cout << "Silhouette score: " << silhouette_score(data) << endl;
     
     return labels;
 }
@@ -51,7 +45,7 @@ void KMeans::kmeans_plus_plus_init(const vector<vector<float>>& data) {
     
     // Step 1: Choose first center uniformly at random
     uniform_int_distribution<int> uniform(0, n - 1);
-    centers[0] = data[uniform(rng)];
+    centers[0] = data[uniform(seed)];
     
     vector<double> min_distances(n, numeric_limits<double>::max());
     
@@ -69,7 +63,7 @@ void KMeans::kmeans_plus_plus_init(const vector<vector<float>>& data) {
         
         // Choose next center with probability proportional to squared distance
         uniform_real_distribution<double> prob_dist(0.0, total_sq_distance);
-        double threshold = prob_dist(rng);
+        double threshold = prob_dist(seed);
         
         double cumulative = 0.0;
         for (int j = 0; j < n; ++j) {
@@ -143,7 +137,7 @@ bool KMeans::maximization_step(const vector<vector<float>>& data) {
             }
             
             uniform_real_distribution<double> dist(0.0, total_dist);
-            double threshold = dist(rng);
+            double threshold = dist(seed);
             double cumulative = 0.0;
             for (size_t j = 0; j < data.size(); ++j) {
                 cumulative += distances[j];
@@ -185,30 +179,6 @@ vector<int> KMeans::predict(const vector<vector<float>>& data) const {
     return predictions;
 }
 
-double KMeans::squared_euclidean(const vector<float>& a, const vector<float>& b) const {
-    double sum = 0.0;
-    for (size_t i = 0; i < a.size(); ++i) {
-        double diff = a[i] - b[i];
-        sum += diff * diff;
-    }
-    return sum;
-}
-
-double KMeans::cluster_sum(const vector<vector<float>>& data) const {
-    double total = 0.0;
-    for (size_t i = 0; i < data.size(); ++i) {
-        total += squared_euclidean(data[i], centers[labels[i]]);
-    }
-    return total;
-}
-
-double KMeans::kmedians_objective(const vector<vector<float>>& data) const {
-    double total = 0.0;
-    for (size_t i = 0; i < data.size(); ++i) {
-        total += euclidean_distance(data[i], centers[labels[i]]);
-    }
-    return total;
-}
 
 double KMeans::silhouette_score(const vector<vector<float>>& data) const {
     int n = data.size();

@@ -221,7 +221,7 @@ void searchHypercube(const vector<vector<double>> &queries, int N, double R, boo
             if (distTrue > 0.0)
                 AF = distApprox / distTrue;
             else
-                AF = (distApprox == 0.0) ? 1.0 : std::numeric_limits<double>::infinity();
+                AF = (distApprox == 0.0) ? 1.0 : numeric_limits<double>::infinity();
             totalAF += AF;
         }
         else

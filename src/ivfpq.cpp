@@ -129,7 +129,7 @@ void IVFPQ::build(const vector<vector<float>>& data) {
             
             // Find nearest centroid in this subspace
             for (int c = 0; c < n_pq_centroids; ++c) {
-                double dist = coarse_quantizer.squared_euclidean(subvectors[m], pq_centroids[m][c]);
+                double dist = squared_euclidean(subvectors[m], pq_centroids[m][c]);
                 if (dist < min_dist) {
                     min_dist = dist;
                     best_code = c;
@@ -156,7 +156,7 @@ void IVFPQ::build_lookup_table(const vector<float>& query_residual,
     // Precompute distances from query to all PQ centroids in each subspace
     for (int m = 0; m < params.M; ++m) {
         for (int c = 0; c < n_pq_centroids; ++c) {
-            LUT[m][c] = coarse_quantizer.squared_euclidean(query_subvectors[m], pq_centroids[m][c]);
+            LUT[m][c] = squared_euclidean(query_subvectors[m], pq_centroids[m][c]);
         }
     }
 }
@@ -182,7 +182,7 @@ vector<pair<int, double>> IVFPQ::query(const vector<float>& q, int N) const {
     // === STEP 1: Find nearest coarse clusters ===
     vector<pair<double, int>> coarse_dists;
     for (int i = 0; i < params.kclusters; ++i) {
-        double dist = coarse_quantizer.squared_euclidean(q, coarse_centers[i]);
+        double dist = squared_euclidean(q, coarse_centers[i]);
         coarse_dists.emplace_back(dist, i);
     }
     sort(coarse_dists.begin(), coarse_dists.end());

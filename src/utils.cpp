@@ -19,3 +19,14 @@ double euclidean_distance(const vector<float>& v1, const vector<float>& v2) {
     }
     return sqrt(sum);
 }
+
+// Faster distance function
+double squared_euclidean(const vector<float>& a, const vector<float>& b){
+    double sum = 0.0;
+    for (size_t i = 0; i < a.size(); ++i) {
+        double diff = a[i] - b[i];
+        sum += diff * diff;
+    }
+    return sum;
+}
+

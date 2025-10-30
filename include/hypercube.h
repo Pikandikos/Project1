@@ -54,7 +54,7 @@ vector<int> queryHypercube(const vector<vector<double>> &data, const vector<doub
 //   outputFile   - Path to the output file where results are stored.
 // =====================================================================================
 void searchHypercube(const vector<vector<double>> &queries, int N, double R, bool rangeSearch,
-                     int M, int probes, const std::string &outputFile);
+                     int M, int probes, const string &outputFile);
 
 static vector<int> bruteForceNN(const vector<vector<double>> &dataset, const vector<double> &query, int N);
 

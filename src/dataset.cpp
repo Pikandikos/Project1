@@ -125,26 +125,26 @@ vector<unsigned char> read_mnist_labels(const string &full_path)
     return labels;
 }
 
-std::vector<std::vector<double>> convertToDouble(const std::vector<std::vector<unsigned char>> &data)
+vector<vector<double>> convertToDouble(const vector<vector<unsigned char>> &data)
 {
-    std::vector<std::vector<double>> result;
+    vector<vector<double>> result;
     result.reserve(data.size());
     for (const auto &row : data)
     {
-        std::vector<double> converted(row.begin(), row.end());
-        result.push_back(std::move(converted));
+        vector<double> converted(row.begin(), row.end());
+        result.push_back(move(converted));
     }
     return result;
 }
 
-std::vector<std::vector<double>> convertToDouble(const std::vector<std::vector<float>> &data)
+vector<vector<double>> convertToDouble(const vector<vector<float>> &data)
 {
-    std::vector<std::vector<double>> result;
+    vector<vector<double>> result;
     result.reserve(data.size());
     for (const auto &row : data)
     {
-        std::vector<double> converted(row.begin(), row.end());
-        result.push_back(std::move(converted));
+        vector<double> converted(row.begin(), row.end());
+        result.push_back(move(converted));
     }
     return result;
 }

@@ -7,13 +7,12 @@
 
 #include "kmeans_main.h"
 #include "kmeans.h"
-#include "mnist_reader.h"
-#include "sift_reader.h"
+#include "data_reader.h"
 #include "utils.h"
 #include "ivfpq.h"
 
 using namespace std;
-using namespace std::chrono;
+using namespace chrono;
 
 int find_optimal_k(const vector<vector<float>>& data, int k_min, int k_max, int step) {
     cout << "Finding optimal k using silhouette score..." << endl;
@@ -134,7 +133,7 @@ bool ivfflat_main(const string& data_file, const string& query_file, const strin
             // Find nearest clusters
             vector<pair<double, int>> cluster_dists;
             for (int i = 0; i < optimal_k; ++i) {
-                double dist = kmeans.squared_euclidean(q, centers[i]);
+                double dist = squared_euclidean(q, centers[i]);
                 cluster_dists.emplace_back(dist, i);
             }
             sort(cluster_dists.begin(), cluster_dists.end());
@@ -152,7 +151,7 @@ bool ivfflat_main(const string& data_file, const string& query_file, const strin
             // Compute real distances to candidates
             vector<pair<double, int>> approx_results;
             for (int cand_id : candidate_set) {
-                double dist = sqrt(kmeans.squared_euclidean(q, data[cand_id]));
+                double dist = euclidean_distance(q, data[cand_id]);
                 approx_results.emplace_back(dist, cand_id);
             }
             sort(approx_results.begin(), approx_results.end());
@@ -169,7 +168,7 @@ bool ivfflat_main(const string& data_file, const string& query_file, const strin
             
             vector<pair<double, int>> true_neighbors;
             for (int i = 0; i < data.size(); ++i) {
-                double dist = sqrt(kmeans.squared_euclidean(q, data[i]));
+                double dist = euclidean_distance(q, data[i]);
                 true_neighbors.emplace_back(dist, i);
             }
             sort(true_neighbors.begin(), true_neighbors.end());
