@@ -41,14 +41,9 @@ void IVFPQ::build(const vector<vector<float>>& data) {
     int sub_dim = dim / params.M;  // Dimension per subspace
     int n_pq_centroids = 1 << params.nbits;  // 2^nbits centroids per subspace
     
-    cout << "=== Building IVFPQ Index ===" << endl;
-    cout << "Cluster quantizer: k=" << params.kclusters << " clusters" << endl;
-    cout << "Product quantization: M=" << params.M << " subvectors, " 
-         << n_pq_centroids << " centroids per subspace" << endl;
-    cout << "Subvector dimension: " << sub_dim << endl;
+    cout << "----------Building IVFPQ Index----------" << endl;
     
-    // 1: Cluster Quantization ===
-    cout << "\n1. Building cluster quantizer..." << endl;
+    // 1: Cluster Quantization
     vector<int> cluster_labels = cluster_quantizer.fit(data);
     
     // Build inverted lists for cluster quantization
@@ -57,7 +52,7 @@ void IVFPQ::build(const vector<vector<float>>& data) {
         inverted_lists[cluster_labels[i]].push_back(i);
     }
     
-    // === STEP 2: Compute Residuals ===
+    // 2: Compute Residuals
     cout << "2. Computing residuals..." << endl;
     const auto& cluster_centers = cluster_quantizer.get_centers();
     vector<vector<vector<float>>> residuals(params.kclusters);
@@ -72,15 +67,14 @@ void IVFPQ::build(const vector<vector<float>>& data) {
         residuals[cluster_id].push_back(residual);
     }
     
-    // === STEP 3: Train Product Quantizers ===
+    // 3: Train Product Quantizers
     cout << "3. Training product quantizers..." << endl;
     pq_centroids.resize(params.M);
     
     // Flatten all residuals for PQ training
     vector<vector<float>> all_residuals;
     for (const auto& cluster_residuals : residuals) {
-        all_residuals.insert(all_residuals.end(), 
-                           cluster_residuals.begin(), cluster_residuals.end());
+        all_residuals.insert(all_residuals.end(),cluster_residuals.begin(), cluster_residuals.end());
     }
     
     // Train a separate k-means for each subspace
@@ -108,17 +102,17 @@ void IVFPQ::build(const vector<vector<float>>& data) {
         pq_centroids[m] = pq_kmeans.get_centers();
     }
     
-    // === STEP 4: Encode All Vectors ===
+    // 4: Encode all vectors
     cout << "4. Encoding vectors with product quantization..." << endl;
     pq_codes.resize(n, vector<uint8_t>(params.M));
     
     for (int i = 0; i < n; ++i) {
-        int cluster_cluster = cluster_labels[i];
+        int cluster = cluster_labels[i];
         
         // Compute residual for this point
         vector<float> residual(dim);
         for (int d = 0; d < dim; ++d) {
-            residual[d] = data[i][d] - cluster_centers[cluster_cluster][d];
+            residual[d] = data[i][d] - cluster_centers[cluster][d];
         }
         
         // Split residual and quantize each part
@@ -140,11 +134,9 @@ void IVFPQ::build(const vector<vector<float>>& data) {
     }
     
     cout << "=== IVFPQ Index Built Successfully ===" << endl;
-    cout << "Total compressed vectors: " << n << endl;
 }
 
-void IVFPQ::build_lookup_table(const vector<float>& query_residual,
-                              vector<vector<double>>& LUT) const {
+void IVFPQ::build_lookup_table(const vector<float>& query_residual,vector<vector<double>>& LUT) const {
     int sub_dim = data[0].size() / params.M;
     int n_pq_centroids = 1 << params.nbits;
     
@@ -165,12 +157,12 @@ double IVFPQ::asymmetric_distance(const vector<uint8_t>& code,
                                  const vector<vector<double>>& LUT) const {
     double total_dist = 0.0;
     
-    // Sum distances from lookup table using the stored codes
+    // Sum distances from lookup table using
     for (int m = 0; m < params.M; ++m) {
         total_dist += LUT[m][code[m]];
     }
     
-    return total_dist;  // This is squared distance
+    return total_dist;
 }
 
 vector<pair<int, double>> IVFPQ::query(const vector<float>& q, int N) const {

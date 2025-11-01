@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
     bool use_lsh = false, use_hypercube = false, use_ivfflat = false, use_ivfpq = false;
     bool rangeSearch = false;
 
-    //Minimal manual parse (robust enough)
+    //Minimal manual parse
     for (int i = 1; i < argc; ++i) {
         string a = argv[i];
         if (a == "-d" && i+1 < argc) data_file = argv[++i];
