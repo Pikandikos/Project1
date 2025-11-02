@@ -247,7 +247,7 @@ double KMeans::silhouette_score(const vector<vector<float>>& data) const {
 }
 
 // Function to find optimal number of clusters for ivfflat and ivfpq algorithms
-int find_optimal_k(const vector<vector<float>>& data, int k_min, int k_max, int step) {
+int KMeans::find_optimal_k(const vector<vector<float>>& data, int k_min, int k_max, int step) {
     cout << "Finding optimal k using silhouette score..." << endl;
     
     double best_silhouette = -1.0;

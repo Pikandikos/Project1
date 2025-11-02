@@ -48,9 +48,11 @@ int64_t LSH::compute_id(int table_id, const vector<float>& v) {
     int64_t sum = 0;
     for (int j = 0; j < params.k; ++j) {
         double dot = 0.0;
+        // calculate dot product
         for (int d = 0; d < dim; ++d) {
             dot += static_cast<double>(v[d]) * static_cast<double>(vs[table_id][j][d]);
         }
+        // calculate hash value
         double val = (dot + ts[table_id][j]) / params.w;
         int64_t h = static_cast<int64_t>(floor(val + 1e-12));
         sum += rints[table_id][j] * h;
@@ -61,6 +63,7 @@ int64_t LSH::compute_id(int table_id, const vector<float>& v) {
 }
 
 int LSH::compute_bucket(int64_t fullID) {
+    //just return the hash passed by mod
     return static_cast<int>((static_cast<uint64_t>(fullID)) % table_size);
 }
 
@@ -170,7 +173,6 @@ vector<int> LSH::range_query(const vector<float>& q, double R) {
     return neighbours;
 }
 
-// 
 bool lsh_main(const string& data_file,
               const string& query_file,
               const string& output_file,
@@ -183,15 +185,50 @@ bool lsh_main(const string& data_file,
     if (type == "mnist") {
         data = read_mnist_im(data_file);
         queries = read_mnist_im(query_file);
-    } else if (type == "sift") {
-        data = read_sift(data_file);
-        queries = read_sift(query_file);
-        data.resize(60000); // if dataset too big it crashes
+        // Normalize vectors // by normalizing we get almost perfect results.
+        /*
         for (auto& vec : data) {
             float norm = 0.0f;
             for (float val : vec) norm += val * val;
             norm = sqrt(norm);
-            if (norm > 0) {
+            if (norm > 1e-12) {
+                for (float& val : vec) val /= norm;
+            }
+        }
+        // Normalize queries
+        for (auto& vec : queries) {
+            float norm = 0.0f;
+            for (float val : vec) norm += val * val;
+            norm = sqrt(norm);
+            if (norm > 1e-12) {
+                for (float& val : vec) val /= norm;
+            }
+        }
+        */
+    } else if (type == "sift") {
+        data = read_sift(data_file);
+        queries = read_sift(query_file);
+        
+        // Limit dataset size if needed
+        if (data.size() > 60000) {
+            data.resize(60000);
+        }
+        
+        // Normalize vectors otherwise we get really bad results.
+        for (auto& vec : data) {
+            float norm = 0.0f;
+            for (float val : vec) norm += val * val;
+            norm = sqrt(norm);
+            if (norm > 1e-12) {
+                for (float& val : vec) val /= norm;
+            }
+        }
+        // Normalize queries
+        for (auto& vec : queries) {
+            float norm = 0.0f;
+            for (float val : vec) norm += val * val;
+            norm = sqrt(norm);
+            if (norm > 1e-12) {
                 for (float& val : vec) val /= norm;
             }
         }

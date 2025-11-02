@@ -70,8 +70,10 @@ vector<vector<float>> read_sift(const string &full_path) {
 
     vector<vector<float>> vectors;
     
+    // ALL values are in LITTLE ENDIAN format
+    
     while (file) {
-        // Read dimension (32-bit integer)
+        // Read dimension (32-bit integer) - LITTLE ENDIAN
         int32_t dimension;
         file.read((char*)&dimension, sizeof(dimension));
         
@@ -80,19 +82,42 @@ vector<vector<float>> read_sift(const string &full_path) {
             break;
         }
         
-        // Read the 128 float coordinates
+        // Validate dimension - should always be 128 for SIFT
+        if (dimension != 128) {
+            cerr << "Warning: Unexpected dimension " << dimension << " (expected 128)" << endl;
+            // But continue anyway, maybe it's a different format
+        }
+        
+        // Read the 128 float coordinates - LITTLE ENDIAN
         vector<float> vector_data(dimension);
         file.read((char*)vector_data.data(), dimension * sizeof(float));
         
         // Check if we read all the data
         if (!file) {
+            cerr << "Error: Incomplete vector data read" << endl;
             break;
         }
         
         vectors.push_back(vector_data);
+        
+        // Progress reporting for large files
+        if (vectors.size() % 100000 == 0) {
+            cout << "Read " << vectors.size() << " SIFT vectors..." << endl;
+        }
     }
     
     file.close();
+    cout << "Successfully read " << vectors.size() << " SIFT vectors" << endl;
+    
+    // Verify the format
+    if (!vectors.empty()) {
+        cout << "First vector dimension: " << vectors[0].size() << endl;
+        cout << "Sample values from first vector: ";
+        for (int i = 0; i < min(5, (int)vectors[0].size()); ++i) {
+            cout << vectors[0][i] << " ";
+        }
+        cout << endl;
+    }
+    
     return vectors;
 }
-

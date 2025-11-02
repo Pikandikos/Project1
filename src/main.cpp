@@ -27,6 +27,7 @@ int main(int argc, char** argv) {
 
     bool use_lsh = false, use_hypercube = false, use_ivfflat = false, use_ivfpq = false;
     bool rangeSearch = false;
+    bool find_k = false;
 
     // Get command line arguments in whatever order they were placed
     for (int i = 1; i < argc; ++i) {
@@ -52,6 +53,7 @@ int main(int argc, char** argv) {
         else if (a == "-nprobe" && i+1 < argc) nprobe = stoi(argv[++i]);
         else if (a == "-nbits" && i+1 < argc) nbits = stoi(argv[++i]);
         else if (a == "-range" && i+1 < argc) rangeSearch = (string(argv[++i]) == "true");
+        else if (a == "-silhouette" && i+1 < argc) find_k = (string(argv[++i]) == "true");
     }
 
     //Basic validation
@@ -64,10 +66,6 @@ int main(int argc, char** argv) {
     bool success = false;
     if (use_lsh) {
         cout << "Launching LSH..." << endl;
-        //vector<vector<float>> data = read_mnist_im(data_file);
-        //data.resize(10000);
-        //find_optimal_k(data,20,50,2);
-        //exit(0);
 
         // gather parameters
         LSHParams lsh_params;
@@ -111,7 +109,14 @@ int main(int argc, char** argv) {
         // call ivfpq algorithm
         success = ivfpq_main(data_file, query_file, output_file, pq_params, type, rangeSearch);
         cout << (success ? "IVFPQ exited successfully\n" : "IVFPQ exited abruptly\n");
-    } else {
+    } else if(find_k){
+
+        vector<vector<float>> data = read_mnist_im(data_file);
+        data.resize(10000);
+        KMeans kmeanss;
+        kmeanss.find_optimal_k(data,20,50,2);
+        return 0;
+    }else {
         cout << "No algorithm selected. Use -lsh, -hypercube, -ivfflat or -ivfpq\n";
     }
 
