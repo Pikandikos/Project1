@@ -1,1 +1,2 @@
 dataset/*.fvecs
+ivfpq_default_range_search.txt
