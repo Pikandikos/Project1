@@ -55,4 +55,12 @@ private:
                               const vector<vector<double>>& LUT) const;
 };
 
+// IVFPQ main function that uses k-means clustering  
+bool ivfpq_main(const string& data_file,
+                const string& query_file, 
+                const string& output_file,
+                const IVFPQParams& params,
+                const string& type,
+                bool do_range);
+
 #endif

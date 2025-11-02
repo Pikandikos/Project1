@@ -5,12 +5,11 @@
 #include <cstring>
 #include <cstdlib>
 
+#include "data_reader.h"
 #include "dataset.h"
 #include "lsh.h"
 #include "hypercube.h"
 #include "kmeans.h"
-#include "kmeans_main.h"
-
 //#include "ivfflat.h"
 #include "ivfpq.h"
 
@@ -58,13 +57,17 @@ int main(int argc, char** argv) {
     //Basic validation
     if (data_file.empty() || query_file.empty()) {
         cerr << "Usage example:\n"
-             << "./search -d train-images.idx3-ubyte -q t10k-images.idx3-ubyte -type mnist -lsh -k 4 -L 5 -w 4.0 -N 1 -R 2000 -o output.txt\n";
+             << "./bin/search -d dataset/train-images.idx3-ubyte -q dataset/t10k-images.idx3-ubyte -type mnist -lsh -k 4 -L 5 -w 4.0 -N 1 -R 2000 -o output.txt\n";
         return 1;
     }
 
     bool success = false;
     if (use_lsh) {
         cout << "Launching LSH..." << endl;
+        //vector<vector<float>> data = read_mnist_im(data_file);
+        //data.resize(10000);
+        //find_optimal_k(data,20,50,2);
+        //exit(0);
         LSHParams lsh_params;
         lsh_params.seed = seed;
         lsh_params.k = k;

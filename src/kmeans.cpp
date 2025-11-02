@@ -1,6 +1,7 @@
 #include <numeric>
 #include <iostream>
 #include <queue>
+#include <iomanip>
 
 #include "kmeans.h"
 #include "utils.h"
@@ -175,7 +176,7 @@ double KMeans::silhouette_score(const vector<vector<float>>& data) const {
     for (int c = 0; c < params.k; ++c) {
         cluster_centers[c] = vector<float>(data[0].size(), 0.0f);
     }
-    
+    // sum distances
     for (int i = 0; i < n; ++i) {
         int cluster = labels[i];
         cluster_sizes[cluster]++;
@@ -183,7 +184,7 @@ double KMeans::silhouette_score(const vector<vector<float>>& data) const {
             cluster_centers[cluster][dim] += data[i][dim];
         }
     }
-    
+    // devide by size
     for (int c = 0; c < params.k; ++c) {
         if (cluster_sizes[c] > 0) {
             for (size_t dim = 0; dim < cluster_centers[c].size(); ++dim) {
@@ -216,12 +217,13 @@ double KMeans::silhouette_score(const vector<vector<float>>& data) const {
             continue;
         }
         
-        // Use precomputed intra-cluster distance (much faster)
+        // Use precomputed intra-cluster distance
         double a_i = intra_cluster_dist[cluster_i];
         
         // Find nearest cluster using center distances
         double b_i = numeric_limits<double>::max();
         for (int c = 0; c < params.k; ++c) {
+            // if its the same cluster or its empty move on
             if (c == cluster_i || cluster_sizes[c] == 0) continue;
             
             double dist_to_center = euclidean_distance(data[i], cluster_centers[c]);
@@ -237,10 +239,39 @@ double KMeans::silhouette_score(const vector<vector<float>>& data) const {
         // store silhouette score
         double max_ab = max(a_i, b_i);
         silhouette_scores[i] = (b_i - a_i) / max_ab;
-
     }
     
     double total = 0.0;
     for (double score : silhouette_scores) total += score;
     return total / n;
+}
+
+// Function to find optimal number of clusters for ivfflat and ivfpq algorithms
+int find_optimal_k(const vector<vector<float>>& data, int k_min, int k_max, int step) {
+    cout << "Finding optimal k using silhouette score..." << endl;
+    
+    double best_silhouette = -1.0;
+    int best_k = k_min;
+    
+    for (int k = k_min; k <= k_max; k += step) {
+        KMeansParams params;
+        params.k = k;
+        params.seed = 12;
+        params.max_iters = 50;
+        
+        KMeans kmeans(params);
+        kmeans.fit(data);
+        
+        double silhouette = kmeans.silhouette_score(data);
+        
+        cout << "k=" << k << ", silhouette=" << fixed << setprecision(4) << silhouette << endl;
+        
+        if (silhouette > best_silhouette) {
+            best_silhouette = silhouette;
+            best_k = k;
+        }
+    }
+    
+    cout << "Optimal k: " << best_k << " with silhouette: " << best_silhouette << endl;
+    return best_k;
 }
