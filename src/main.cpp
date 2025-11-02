@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
     bool use_lsh = false, use_hypercube = false, use_ivfflat = false, use_ivfpq = false;
     bool rangeSearch = false;
 
-    //Minimal manual parse
+    // Get command line arguments in whatever order they were placed
     for (int i = 1; i < argc; ++i) {
         string a = argv[i];
         if (a == "-d" && i+1 < argc) data_file = argv[++i];
@@ -68,6 +68,8 @@ int main(int argc, char** argv) {
         //data.resize(10000);
         //find_optimal_k(data,20,50,2);
         //exit(0);
+
+        // gather parameters
         LSHParams lsh_params;
         lsh_params.seed = seed;
         lsh_params.k = k;
@@ -75,7 +77,7 @@ int main(int argc, char** argv) {
         lsh_params.w = w;
         lsh_params.N = N;
         lsh_params.R = R;
-        
+        // call lsh algorithm
         success = lsh_main(data_file, query_file, output_file, lsh_params, type, rangeSearch);
         cout << (success ? "LSH exited successfully\n" : "LSH exited abruptly\n");
     } else if (use_hypercube) {
@@ -92,11 +94,12 @@ int main(int argc, char** argv) {
         cout << (success ? "Hypercube exited successfully\n" : "Hypercube exited abruptly\n");
     } else if (use_ivfflat) {
         cout << "Launching IVFFLAT..." << endl;
-        success = ivfflat_main(data_file, query_file, output_file, kclusters, nprobe, seed, N, R, type, rangeSearch);
+        //success = ivfflat_main(data_file, query_file, output_file, kclusters, nprobe, seed, N, R, type, rangeSearch);
         cout << (success ? "IVFFLAT exited successfully\n" : "IVFFLAT exited abruptly\n");
     } else if (use_ivfpq) {
         cout << "Launching IVFPQ..." << endl;
-        
+
+        // gather parameteres
         IVFPQParams pq_params;
         pq_params.kclusters = (kclusters <= 0) ? 50 : kclusters;
         pq_params.nprobe = (nprobe <= 0) ? 5 : nprobe;
@@ -105,7 +108,7 @@ int main(int argc, char** argv) {
         pq_params.seed = seed;
         pq_params.N = N;
         pq_params.R = R;
-        
+        // call ivfpq algorithm
         success = ivfpq_main(data_file, query_file, output_file, pq_params, type, rangeSearch);
         cout << (success ? "IVFPQ exited successfully\n" : "IVFPQ exited abruptly\n");
     } else {

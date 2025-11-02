@@ -38,7 +38,7 @@ public:
     
     // Calculate silhouette score for clustering quality
     double silhouette_score(const vector<vector<float>>& data) const;
-    // Function to find optimal k using silhouette score (as required by assignment)
+    // Function to find optimal k using silhouette score
     int find_optimal_k(const vector<vector<float>>& data,int k_min = 20, int k_max = 100, int step = 10);
 
 

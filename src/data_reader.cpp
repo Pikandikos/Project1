@@ -6,7 +6,7 @@
 #include "data_reader.h"
 
 using namespace std;
-
+// Got this from stackoverflow
 static int reverseInt(int i) {
     unsigned char c1, c2, c3, c4;
     c1 = i & 255;

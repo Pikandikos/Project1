@@ -21,6 +21,7 @@ IVFPQ::IVFPQ(const IVFPQParams& params) : params(params) {
 }
 
 vector<vector<float>> IVFPQ::split_vector(const vector<float>& v) const {
+    // Data dimensions
     int dim = v.size();
     int sub_dim = dim / params.M;  // Dimension of each subvector
     
@@ -38,7 +39,7 @@ vector<vector<float>> IVFPQ::split_vector(const vector<float>& v) const {
 void IVFPQ::build(const vector<vector<float>>& data) {
     this->data = data;
     int n = data.size();
-    int dim = data[0].size();
+    int dim = data[0].size();   // data dimensions
     int sub_dim = dim / params.M;  // Dimension per subspace
     int n_pq_centroids = 1 << params.nbits;  // 2^nbits centroids per subspace
     
@@ -134,7 +135,7 @@ void IVFPQ::build(const vector<vector<float>>& data) {
         }
     }
     
-    cout << "=== IVFPQ Index Built Successfully ===" << endl;
+    cout << "----------IVFPQ Index Built Successfully----------" << endl;
 }
 
 void IVFPQ::build_lookup_table(const vector<float>& query_residual,vector<vector<double>>& LUT) const {
@@ -147,6 +148,7 @@ void IVFPQ::build_lookup_table(const vector<float>& query_residual,vector<vector
     
     // Precompute distances from query to all PQ centroids in each subspace
     for (int m = 0; m < params.M; ++m) {
+        // for each center
         for (int c = 0; c < n_pq_centroids; ++c) {
             LUT[m][c] = squared_euclidean(query_subvectors[m], pq_centroids[m][c]);
         }
@@ -248,12 +250,7 @@ vector<int> IVFPQ::range_query(const vector<float>& q, double R) const {
     return results;
 }
 
-bool ivfpq_main(const string& data_file,
-                const string& query_file, 
-                const string& output_file,
-                const IVFPQParams& params,
-                const string& type,
-                bool do_range) {
+bool ivfpq_main(const string& data_file,const string& query_file,const string& output_file,const IVFPQParams& params,const string& type,bool do_range) {
     
     // Read dataset based on type
     vector<vector<float>> data, queries;

@@ -186,8 +186,15 @@ bool lsh_main(const string& data_file,
     } else if (type == "sift") {
         data = read_sift(data_file);
         queries = read_sift(query_file);
-        data.resize(2000);
-        cout << " iam here " << endl;
+        data.resize(60000); // if dataset too big it crashes
+        for (auto& vec : data) {
+            float norm = 0.0f;
+            for (float val : vec) norm += val * val;
+            norm = sqrt(norm);
+            if (norm > 0) {
+                for (float& val : vec) val /= norm;
+            }
+        }
     } else {
         cerr << "Unknown dataset type: " << type << endl;
         return false;
